@@ -1,29 +1,32 @@
-"""Leakage tests.
+"""Leakage tests (Phase 0, docs/leakage-audit.md).
 
 The whole point of this project is that a gameweek's features must be
 computable *before* that gameweek's deadline. These tests fail loudly if
 that guarantee is ever broken, either structurally (a raw same-gameweek
 column sneaking into FEATURE_COLUMNS) or mechanically (a rolling/expanding
-computation that isn't actually shifted before the window is applied).
-
-All tests here use small synthetic, in-memory DataFrames rather than the
-real downloaded seasons, so they run offline and don't depend on
-data/raw/ being warm.
+computation that isn't actually shifted before the window is applied, or a
+single huge outlier gameweek leaking into its own feature row).
 """
+from unittest import mock
+
 import numpy as np
 import pandas as pd
 import pytest
 
+from fplxp.config import TRAIN_SEASONS
 from fplxp.features import (
     FEATURE_COLUMNS,
-    ID_COLUMNS,
     LEAK_COLUMNS,
+    MARKET_FEATURE_COLUMNS,
+    ROLLING_FEATURE_COLUMNS,
+    SAME_ROUND_FEATURE_COLUMNS,
     TARGET_COLUMN,
-    _add_player_rolling,
-    _add_team_rolling,
-    _aggregate_player_gw,
-    _team_gw_results,
+    build_feature_table,
 )
+
+# ---------------------------------------------------------------------------
+# Structural checks
+# ---------------------------------------------------------------------------
 
 
 def test_no_leak_columns_in_feature_list():
@@ -35,177 +38,167 @@ def test_no_leak_columns_in_feature_list():
 def test_xP_is_not_a_feature():
     """FPL's own same-gameweek xP must be excluded (dropped, not shifted)."""
     assert "xP" not in FEATURE_COLUMNS
-    assert "xP" not in ID_COLUMNS
 
 
 def test_target_not_in_features():
     assert TARGET_COLUMN not in FEATURE_COLUMNS
 
 
-def _synthetic_player_gw(points, minutes, rounds=None):
-    """One player, one season, with the given per-gameweek total_points/minutes."""
-    n = len(points)
-    rounds = rounds or list(range(1, n + 1))
-    return pd.DataFrame(
-        {
-            "season": ["2099-00"] * n,
-            "element": [1] * n,
-            "round": rounds,
-            "total_points": points,
-            "minutes": minutes,
-            "ict_index": [1.0] * n,
-            "goals_scored": [0] * n,
-            "assists": [0] * n,
-            "bps": [0] * n,
-            "bonus": [0] * n,
-            "clean_sheets": [0] * n,
-            "goals_conceded": [0] * n,
-            "saves": [0] * n,
-            "starts": [1] * n,
-        }
+def test_minutes_not_a_feature():
+    """minutes is target-adjacent (you can't know it before kickoff) -- it's
+    kept in the output table for evaluation (minutes > 0 splits) but must
+    never be a model input."""
+    assert "minutes" not in FEATURE_COLUMNS
+
+
+def test_same_round_columns_are_the_only_legitimate_ones():
+    """Every FEATURE_COLUMNS entry that ISN'T a shift(1)-then-window rolling
+    feature must be on a hand-curated whitelist of information that is
+    genuinely knowable before the deadline. This whitelist is written
+    independently of fplxp.features's own SAME_ROUND_FEATURE_COLUMNS /
+    MARKET_FEATURE_COLUMNS constants, precisely so a future same-round-ish
+    column can't sneak onto the "legitimate" list just by being added to
+    both places at once.
+    """
+    expected_whitelist = {
+        # Schedule / fixture info FPL sets before kickoff, independent of outcome.
+        "num_fixtures", "home_fraction",
+        "fixture_difficulty_min", "fixture_difficulty_max", "fixture_difficulty_mean",
+        "own_attack_strength", "own_defence_strength", "opp_attack_strength", "opp_defence_strength",
+        "is_blank", "gw_number",
+        # Missingness bookkeeping -- structural, not match-outcome-derived.
+        "is_first_gw_of_season", "has_prior_season",
+        # Market info: price/ownership are published by FPL before the deadline.
+        "value", "selected_log", "value_delta_form3", "value_delta_form5",
+        "selected_delta_form3", "selected_delta_form5",
+    }
+    same_round_in_use = set(SAME_ROUND_FEATURE_COLUMNS) | set(MARKET_FEATURE_COLUMNS)
+    assert same_round_in_use == expected_whitelist, (
+        f"same-round feature set changed without updating this test's independent "
+        f"whitelist. In code but not whitelisted: {same_round_in_use - expected_whitelist}. "
+        f"Whitelisted but not in code: {expected_whitelist - same_round_in_use}."
     )
+    # And every non-rolling feature column must be in that same-round set.
+    non_rolling = set(FEATURE_COLUMNS) - set(ROLLING_FEATURE_COLUMNS)
+    assert non_rolling == same_round_in_use
 
 
-def test_player_rolling_form_excludes_current_gameweek():
-    df = _synthetic_player_gw(points=[10, 20, 30, 40], minutes=[90, 90, 90, 90])
-    out = _add_player_rolling(df).set_index("round")
-
-    # First gameweek: no prior data at all -> NaN, not e.g. 0 or the row's own value.
-    assert np.isnan(out.loc[1, "pts_form3"])
-    assert np.isnan(out.loc[1, "pts_form5"])
-
-    # Second gameweek's form is exactly gameweek 1's raw value (10), never gw2's own 20.
-    assert out.loc[2, "pts_form3"] == pytest.approx(10.0)
-
-    # Fourth gameweek's 3-window form uses gw1-3 only (10,20,30 -> 20), excluding gw4's 40.
-    assert out.loc[4, "pts_form3"] == pytest.approx(20.0)
-    # 5-window form with only 3 prior points available averages exactly those 3.
-    assert out.loc[4, "pts_form5"] == pytest.approx(20.0)
+def test_rolling_and_same_round_partition_all_features():
+    assert set(FEATURE_COLUMNS) == set(ROLLING_FEATURE_COLUMNS) | set(SAME_ROUND_FEATURE_COLUMNS) | set(MARKET_FEATURE_COLUMNS)
 
 
-def test_player_rolling_is_unaffected_by_current_gameweek_value():
-    """Changing gw4's own total_points must not change gw4's rolling feature."""
-    base = _synthetic_player_gw(points=[10, 20, 30, 40], minutes=[90, 90, 90, 90])
-    mutated = _synthetic_player_gw(points=[10, 20, 30, 9999], minutes=[90, 90, 90, 90])
+# ---------------------------------------------------------------------------
+# Synthetic spike test: build a full season through the real pipeline (no
+# network -- fplxp.data.load_all is monkeypatched) where one player scores
+# 0 every gameweek except a single 100-point spike, and prove no feature at
+# the spike gameweek reflects it.
+# ---------------------------------------------------------------------------
 
-    out_base = _add_player_rolling(base).set_index("round")
-    out_mut = _add_player_rolling(mutated).set_index("round")
 
-    for col in ["pts_form3", "pts_form5", "mins_form3", "mins_form5"]:
-        assert out_base.loc[4, col] == pytest.approx(out_mut.loc[4, col]), (
-            f"{col} at gw4 changed when only gw4's own value changed -- leakage"
+def _synthetic_league(n_rounds=10, spike_round=6, spike_points=100):
+    """Two teams, three players each, one full synthetic season."""
+    season = "2099-00"
+    teams_rows = [
+        {"season": season, "id": 1, "name": "Test FC", "strength_attack_home": 1200,
+         "strength_attack_away": 1150, "strength_defence_home": 1200, "strength_defence_away": 1150},
+        {"season": season, "id": 2, "name": "Rival FC", "strength_attack_home": 1100,
+         "strength_attack_away": 1050, "strength_defence_home": 1100, "strength_defence_away": 1050},
+    ]
+    teams = pd.DataFrame(teams_rows)
+
+    fixture_rows = []
+    for r in range(1, n_rounds + 1):
+        home, away = (1, 2) if r % 2 == 1 else (2, 1)
+        fixture_rows.append({
+            "season": season, "event": r, "team_h": home, "team_a": away,
+            "team_h_score": 1, "team_a_score": 1,
+            "team_h_difficulty": 3, "team_a_difficulty": 3, "finished": True,
+        })
+    fixtures = pd.DataFrame(fixture_rows)
+
+    gw_rows = []
+    players = [
+        (1, "Spike Player", "MID", "Test FC"),
+        (2, "Steady Player", "MID", "Test FC"),
+        (3, "Rival Player", "FWD", "Rival FC"),
+    ]
+    for element, name, position, team in players:
+        for r in range(1, n_rounds + 1):
+            pts = 0
+            if element == 1 and r == spike_round:
+                pts = spike_points
+            gw_rows.append({
+                "season": season, "element": element, "round": r, "name": name,
+                "position": position, "team": team, "was_home": (r % 2 == 1) if team == "Test FC" else (r % 2 == 0),
+                "value": 50, "selected": 1000, "minutes": 90, "total_points": pts,
+                "goals_scored": 0, "assists": 0, "clean_sheets": 0, "goals_conceded": 1,
+                "own_goals": 0, "penalties_missed": 0, "penalties_saved": 0, "saves": 0,
+                "bonus": 0, "bps": 10, "yellow_cards": 0, "red_cards": 0,
+                "ict_index": 1.0, "influence": 1.0, "creativity": 1.0, "threat": 1.0,
+                "xP": 2.0,
+            })
+    gw = pd.DataFrame(gw_rows)
+    return gw, fixtures, teams
+
+
+@pytest.fixture
+def synthetic_feature_table():
+    gw, fixtures, teams = _synthetic_league()
+    with mock.patch("fplxp.features.load_all", return_value=(gw, fixtures, teams)):
+        table = build_feature_table(["2099-00"])
+    return table
+
+
+def test_spike_gameweek_features_do_not_reflect_the_spike(synthetic_feature_table):
+    table = synthetic_feature_table
+    spike_row = table[(table["element"] == 1) & (table["round"] == 6)]
+    assert len(spike_row) == 1
+    spike_row = spike_row.iloc[0]
+
+    control_row = table[(table["element"] == 2) & (table["round"] == 6)].iloc[0]  # never spikes
+
+    # The rolling features at the spike gameweek must be identical in shape
+    # to a player who never spiked (both are all-zero histories up to gw6),
+    # since the spike itself must not have leaked backward into its own row.
+    for col in ROLLING_FEATURE_COLUMNS:
+        spike_val = spike_row[col]
+        control_val = control_row[col]
+        if pd.isna(spike_val) and pd.isna(control_val):
+            continue
+        assert spike_val == pytest.approx(control_val), (
+            f"{col} at the spike gameweek ({spike_val}) differs from an "
+            f"identically-scoring-until-now player ({control_val}) -- the "
+            f"100-point spike leaked into its own gameweek's features."
         )
-    # Sanity: earlier gameweeks are identical too (mutation is strictly downstream in time).
-    for r in [1, 2, 3]:
-        for col in ["pts_form3", "pts_form5"]:
-            left = out_base.loc[r, col]
-            right = out_mut.loc[r, col]
-            if np.isnan(left):
-                assert np.isnan(right)
-            else:
-                assert left == pytest.approx(right)
+
+    # And the gameweek *after* the spike must show it (proves the pipeline
+    # actually uses history at all, i.e. this isn't a vacuous pass).
+    next_row = table[(table["element"] == 1) & (table["round"] == 7)].iloc[0]
+    assert next_row["pts_per90_form3"] > 0
 
 
-def test_played_60_uses_only_past_minutes():
-    # Player starts slow (below 60) then plays big minutes from gw3 onward.
-    df = _synthetic_player_gw(points=[2, 2, 8, 8, 8], minutes=[10, 20, 90, 90, 90])
-    out = _add_player_rolling(df).set_index("round")
-    # At gw3, the played_60 rate should reflect gw1-2 only (both < 60 -> rate 0),
-    # not gw3's own 90-minute appearance.
-    assert out.loc[3, "played60_rate_form3"] == pytest.approx(0.0)
-    # By gw5, the 3-window rate reflects gw2-4 (0, 1, 1 -> 2/3), excluding gw5 itself.
-    assert out.loc[5, "played60_rate_form3"] == pytest.approx(2 / 3)
+def test_spike_does_not_change_earlier_gameweeks(synthetic_feature_table):
+    """A later gameweek's outcome can't retroactively change an earlier
+    gameweek's features (sanity check on the shift direction itself)."""
+    table = synthetic_feature_table
+    for r in range(1, 6):
+        row = table[(table["element"] == 1) & (table["round"] == r)].iloc[0]
+        control = table[(table["element"] == 2) & (table["round"] == r)].iloc[0]
+        for col in ["pts_per90_form3", "mins_form3"]:
+            a, b = row[col], control[col]
+            if pd.isna(a) and pd.isna(b):
+                continue
+            assert a == pytest.approx(b)
 
 
-def _synthetic_team_gw(goals_for, goals_against, difficulty=None):
-    n = len(goals_for)
-    difficulty = difficulty or [3] * n
-    return pd.DataFrame(
-        {
-            "season": ["2099-00"] * n,
-            "team_id": [1] * n,
-            "event": list(range(1, n + 1)),
-            "goals_for": goals_for,
-            "goals_against": goals_against,
-            "difficulty": difficulty,
-        }
-    )
+# ---------------------------------------------------------------------------
+# Correlation smoke test on real train data: nothing should look "too good
+# to be true", which is the fingerprint of leakage.
+# ---------------------------------------------------------------------------
 
 
-def test_team_rolling_excludes_current_gameweek():
-    df = _synthetic_team_gw(goals_for=[1, 2, 3, 4], goals_against=[0, 1, 2, 3])
-    out = _add_team_rolling(df).set_index("event")
-
-    assert np.isnan(out.loc[1, "team_gf_form5"])
-    assert out.loc[2, "team_gf_form5"] == pytest.approx(1.0)
-    # gw4's rolling GF uses gw1-3 (1,2,3 -> 2.0), excluding gw4's own 4 goals.
-    assert out.loc[4, "team_gf_form5"] == pytest.approx(2.0)
-    assert out.loc[4, "team_ga_form5"] == pytest.approx(1.0)
-
-
-def test_double_gameweek_stats_are_summed_not_leaked():
-    """Two fixtures in one gameweek must be summed into one row, and the
-    resulting aggregate must still only be usable as history for *later*
-    gameweeks, never for itself."""
-    rows = []
-    for fixture_points, fixture_minutes in [(4, 90), (6, 90)]:
-        rows.append(
-            {
-                "season": "2099-00",
-                "element": 1,
-                "round": 2,
-                "name": "Test Player",
-                "position": "MID",
-                "team": "Test FC",
-                "was_home": True,
-                "value": 50,
-                "minutes": fixture_minutes,
-                "total_points": fixture_points,
-                "goals_scored": 0,
-                "assists": 0,
-                "clean_sheets": 0,
-                "goals_conceded": 0,
-                "own_goals": 0,
-                "penalties_missed": 0,
-                "penalties_saved": 0,
-                "saves": 0,
-                "bonus": 0,
-                "bps": 0,
-                "yellow_cards": 0,
-                "red_cards": 0,
-                "ict_index": 1.0,
-                "influence": 1.0,
-                "creativity": 1.0,
-                "threat": 1.0,
-                "starts": 1,
-            }
-        )
-    # Round 1: a normal single fixture, used only as history for round 2.
-    rows.append(
-        {
-            **{k: 0 for k in rows[0] if k not in ("season", "element", "round", "name", "position", "team", "was_home", "value")},
-            "season": "2099-00",
-            "element": 1,
-            "round": 1,
-            "name": "Test Player",
-            "position": "MID",
-            "team": "Test FC",
-            "was_home": False,
-            "value": 50,
-            "minutes": 90,
-            "total_points": 5,
-            "starts": 1,
-        }
-    )
-    raw = pd.DataFrame(rows)
-    agg = _aggregate_player_gw(raw)
-    agg = agg.set_index("round")
-
-    assert agg.loc[2, "total_points"] == 10  # 4 + 6, summed across both fixtures
-    assert agg.loc[2, "minutes"] == 180
-    assert agg.loc[2, "num_fixtures"] == 2
-
-    rolled = _add_player_rolling(agg.reset_index()).set_index("round")
-    # Round 2's own double-gameweek haul (10 points) must not appear in round 2's
-    # own rolling feature -- only round 1's 5 points should.
-    assert rolled.loc[2, "pts_form3"] == pytest.approx(5.0)
+def test_no_feature_is_suspiciously_correlated_with_target():
+    table = build_feature_table(TRAIN_SEASONS)
+    corr = table[FEATURE_COLUMNS + [TARGET_COLUMN]].corr(method="spearman")[TARGET_COLUMN].drop(TARGET_COLUMN)
+    offenders = corr[corr.abs() > 0.9]
+    assert offenders.empty, f"suspiciously high |Spearman| with target (possible leakage): {offenders.to_dict()}"
