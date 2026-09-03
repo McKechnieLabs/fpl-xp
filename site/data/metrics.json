@@ -1,0 +1,634 @@
+{
+  "generated_from": "fplxp.backtest",
+  "selected_model": "gbr",
+  "train_seasons": [
+    "2020-21",
+    "2021-22",
+    "2022-23"
+  ],
+  "val_season": [
+    "2023-24"
+  ],
+  "test_seasons": [
+    "2024-25",
+    "2025-26"
+  ],
+  "n_test_rows": 57026,
+  "n_test_rows_played": 22792,
+  "point_metrics": [
+    {
+      "method": "Model",
+      "position": "DEF",
+      "rmse": 1.9933455938,
+      "mae": 1.050245721,
+      "spearman": 0.6414896607,
+      "rmse_played": 3.0126346591,
+      "mae_played": 2.0218955435,
+      "spearman_played": 0.3048674544,
+      "n": 18879,
+      "n_played": 7649
+    },
+    {
+      "method": "Model",
+      "position": "FWD",
+      "rmse": 2.1735269224,
+      "mae": 1.1470755826,
+      "spearman": 0.7398044433,
+      "rmse_played": 3.1827309084,
+      "mae_played": 2.1242439704,
+      "spearman_played": 0.4603814765,
+      "n": 6294,
+      "n_played": 2670
+    },
+    {
+      "method": "Model",
+      "position": "GK",
+      "rmse": 1.5337755784,
+      "mae": 0.6775106506,
+      "spearman": 0.6572265421,
+      "rmse_played": 2.9319302853,
+      "mae_played": 2.1814747274,
+      "spearman_played": 0.0767968522,
+      "n": 6296,
+      "n_played": 1517
+    },
+    {
+      "method": "Model",
+      "position": "MID",
+      "rmse": 1.9313961977,
+      "mae": 0.9774358702,
+      "spearman": 0.7231008593,
+      "rmse_played": 2.7947166164,
+      "mae_played": 1.7205736335,
+      "spearman_played": 0.4005152334,
+      "n": 25557,
+      "n_played": 10956
+    },
+    {
+      "method": "Model",
+      "position": "ALL",
+      "rmse": 1.9412275467,
+      "mae": 0.9871500417,
+      "spearman": 0.7007617773,
+      "rmse_played": 2.9256031093,
+      "mae_played": 1.899662702,
+      "spearman_played": 0.3666033604,
+      "n": 57026,
+      "n_played": 22792
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "position": "DEF",
+      "rmse": 2.2056278469,
+      "mae": 1.1632765145,
+      "spearman": 0.6149986879,
+      "rmse_played": 3.2592447598,
+      "mae_played": 2.3110467061,
+      "spearman_played": 0.201289215,
+      "n": 18879,
+      "n_played": 7649
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "position": "FWD",
+      "rmse": 2.381077964,
+      "mae": 1.1923897505,
+      "spearman": 0.751690106,
+      "rmse_played": 3.4802073131,
+      "mae_played": 2.348811233,
+      "spearman_played": 0.4055154199,
+      "n": 6294,
+      "n_played": 2670
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "position": "GK",
+      "rmse": 1.6862501381,
+      "mae": 0.7191187028,
+      "spearman": 0.7821169524,
+      "rmse_played": 3.2254972975,
+      "mae_played": 2.4083365544,
+      "spearman_played": 0.0707896632,
+      "n": 6296,
+      "n_played": 1517
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "position": "MID",
+      "rmse": 2.1241855714,
+      "mae": 1.0623592682,
+      "spearman": 0.7162417657,
+      "rmse_played": 3.0434375691,
+      "mae_played": 1.9808211427,
+      "spearman_played": 0.3391126514,
+      "n": 25557,
+      "n_played": 10956
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "position": "ALL",
+      "rmse": 2.1383190747,
+      "mae": 1.0722246971,
+      "spearman": 0.6976315847,
+      "rmse_played": 3.1825676549,
+      "mae_played": 2.1632083731,
+      "spearman_played": 0.2907149219,
+      "n": 57026,
+      "n_played": 22792
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "position": "DEF",
+      "rmse": 2.145665064,
+      "mae": 1.1669624071,
+      "spearman": 0.5976235926,
+      "rmse_played": 3.151483037,
+      "mae_played": 2.188389756,
+      "spearman_played": 0.220709791,
+      "n": 18879,
+      "n_played": 7649
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "position": "FWD",
+      "rmse": 2.3282268426,
+      "mae": 1.2222607631,
+      "spearman": 0.7168816317,
+      "rmse_played": 3.3567959084,
+      "mae_played": 2.2642522506,
+      "spearman_played": 0.424869635,
+      "n": 6294,
+      "n_played": 2670
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "position": "GK",
+      "rmse": 1.6544292368,
+      "mae": 0.7446108119,
+      "spearman": 0.7327341307,
+      "rmse_played": 3.1375286988,
+      "mae_played": 2.301511024,
+      "spearman_played": 0.087196164,
+      "n": 6296,
+      "n_played": 1517
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "position": "MID",
+      "rmse": 2.0651256475,
+      "mae": 1.0749982295,
+      "spearman": 0.6838142615,
+      "rmse_played": 2.9224974767,
+      "mae_played": 1.8577140519,
+      "spearman_played": 0.361677864,
+      "n": 25557,
+      "n_played": 10956
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "position": "ALL",
+      "rmse": 2.0822915365,
+      "mae": 1.0852206353,
+      "spearman": 0.6696715244,
+      "rmse_played": 3.0682181585,
+      "mae_played": 2.0458517957,
+      "spearman_played": 0.3117077456,
+      "n": 57026,
+      "n_played": 22792
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "position": "DEF",
+      "rmse": 2.1762413176,
+      "mae": 1.0340696011,
+      "spearman": 0.6962309677,
+      "rmse_played": 3.359650761,
+      "mae_played": 2.285658256,
+      "spearman_played": 0.538631984,
+      "n": 18879,
+      "n_played": 7649
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "position": "FWD",
+      "rmse": 2.3192556167,
+      "mae": 1.0759612329,
+      "spearman": 0.7980038739,
+      "rmse_played": 3.5052480718,
+      "mae_played": 2.3503370787,
+      "spearman_played": 0.6305155399,
+      "n": 6294,
+      "n_played": 2670
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "position": "GK",
+      "rmse": 1.7470291537,
+      "mae": 0.7572585769,
+      "spearman": 0.7119234142,
+      "rmse_played": 3.4216833491,
+      "mae_played": 2.4758734344,
+      "spearman_played": 0.4523632214,
+      "n": 6296,
+      "n_played": 1517
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "position": "MID",
+      "rmse": 2.1387652105,
+      "mae": 0.9918417655,
+      "spearman": 0.781680266,
+      "rmse_played": 3.2142813505,
+      "mae_played": 2.1047827674,
+      "spearman_played": 0.590148216,
+      "n": 25557,
+      "n_played": 10956
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "position": "ALL",
+      "rmse": 2.1327445723,
+      "mae": 0.9892066777,
+      "spearman": 0.7523664587,
+      "rmse_played": 3.3125466811,
+      "mae_played": 2.2189496314,
+      "spearman_played": 0.5809938684,
+      "n": 57026,
+      "n_played": 22792
+    }
+  ],
+  "topk_metrics": [
+    {
+      "method": "Model",
+      "k": 1,
+      "precision_at_k": 0.0263157895,
+      "realised_points_of_topk": 5.75
+    },
+    {
+      "method": "Model",
+      "k": 11,
+      "precision_at_k": 0.1483253589,
+      "realised_points_of_topk": 57.0
+    },
+    {
+      "method": "Model",
+      "k": 15,
+      "precision_at_k": 0.1675438596,
+      "realised_points_of_topk": 74.0263157895
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "k": 1,
+      "precision_at_k": 0.0394736842,
+      "realised_points_of_topk": 5.3157894737
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "k": 11,
+      "precision_at_k": 0.1004784689,
+      "realised_points_of_topk": 46.0921052632
+    },
+    {
+      "method": "Baseline: last-5 mean",
+      "k": 15,
+      "precision_at_k": 0.1114035088,
+      "realised_points_of_topk": 59.6710526316
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "k": 1,
+      "precision_at_k": 0.0789473684,
+      "realised_points_of_topk": 7.0263157895
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "k": 11,
+      "precision_at_k": 0.1303827751,
+      "realised_points_of_topk": 49.0789473684
+    },
+    {
+      "method": "Baseline: season-to-date mean",
+      "k": 15,
+      "precision_at_k": 0.1403508772,
+      "realised_points_of_topk": 63.1973684211
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "k": 1,
+      "precision_at_k": 0.1052631579,
+      "realised_points_of_topk": 8.4736842105
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "k": 11,
+      "precision_at_k": 0.2045454545,
+      "realised_points_of_topk": 60.1842105263
+    },
+    {
+      "method": "Baseline: FPL xP",
+      "k": 15,
+      "precision_at_k": 0.2236842105,
+      "realised_points_of_topk": 76.5921052632
+    },
+    {
+      "method": "Oracle (perfect hindsight)",
+      "k": 1,
+      "precision_at_k": 1.0,
+      "realised_points_of_topk": 17.6052631579
+    },
+    {
+      "method": "Oracle (perfect hindsight)",
+      "k": 11,
+      "precision_at_k": 1.0,
+      "realised_points_of_topk": 138.6184210526
+    },
+    {
+      "method": "Oracle (perfect hindsight)",
+      "k": 15,
+      "precision_at_k": 1.0,
+      "realised_points_of_topk": 176.8552631579
+    }
+  ],
+  "calibration": [
+    {
+      "position": "DEF",
+      "decile": 0,
+      "mean_predicted": -0.0840290004,
+      "mean_actual": 0.0174788136,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 1,
+      "mean_predicted": -0.0142272518,
+      "mean_actual": 0.0444915254,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 2,
+      "mean_predicted": 0.0481205603,
+      "mean_actual": 0.0656779661,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 3,
+      "mean_predicted": 0.1491147483,
+      "mean_actual": 0.1016949153,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 4,
+      "mean_predicted": 0.3936587072,
+      "mean_actual": 0.3903601695,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 5,
+      "mean_predicted": 0.7769200466,
+      "mean_actual": 0.8261791203,
+      "n": 1887
+    },
+    {
+      "position": "DEF",
+      "decile": 6,
+      "mean_predicted": 1.2325352935,
+      "mean_actual": 1.3993644068,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 7,
+      "mean_predicted": 1.7471777357,
+      "mean_actual": 1.9480932203,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 8,
+      "mean_predicted": 2.2850348189,
+      "mean_actual": 2.717690678,
+      "n": 1888
+    },
+    {
+      "position": "DEF",
+      "decile": 9,
+      "mean_predicted": 3.3050346602,
+      "mean_actual": 3.7431144068,
+      "n": 1888
+    },
+    {
+      "position": "FWD",
+      "decile": 0,
+      "mean_predicted": -0.0274481587,
+      "mean_actual": 0.0126984127,
+      "n": 630
+    },
+    {
+      "position": "FWD",
+      "decile": 1,
+      "mean_predicted": 0.0299016747,
+      "mean_actual": 0.027027027,
+      "n": 629
+    },
+    {
+      "position": "FWD",
+      "decile": 2,
+      "mean_predicted": 0.0814936083,
+      "mean_actual": 0.0238473768,
+      "n": 629
+    },
+    {
+      "position": "FWD",
+      "decile": 3,
+      "mean_predicted": 0.1917122569,
+      "mean_actual": 0.0698412698,
+      "n": 630
+    },
+    {
+      "position": "FWD",
+      "decile": 4,
+      "mean_predicted": 0.4525465675,
+      "mean_actual": 0.2813990461,
+      "n": 629
+    },
+    {
+      "position": "FWD",
+      "decile": 5,
+      "mean_predicted": 0.9592560947,
+      "mean_actual": 0.8759936407,
+      "n": 629
+    },
+    {
+      "position": "FWD",
+      "decile": 6,
+      "mean_predicted": 1.6001967183,
+      "mean_actual": 1.6476190476,
+      "n": 630
+    },
+    {
+      "position": "FWD",
+      "decile": 7,
+      "mean_predicted": 2.2868023754,
+      "mean_actual": 2.4419713831,
+      "n": 629
+    },
+    {
+      "position": "FWD",
+      "decile": 8,
+      "mean_predicted": 3.019662792,
+      "mean_actual": 3.3529411765,
+      "n": 629
+    },
+    {
+      "position": "FWD",
+      "decile": 9,
+      "mean_predicted": 4.6102055979,
+      "mean_actual": 4.4714285714,
+      "n": 630
+    },
+    {
+      "position": "GK",
+      "decile": 0,
+      "mean_predicted": 0.0007201546,
+      "mean_actual": 0.0222222222,
+      "n": 630
+    },
+    {
+      "position": "GK",
+      "decile": 1,
+      "mean_predicted": 0.0214964469,
+      "mean_actual": 0.0183206107,
+      "n": 655
+    },
+    {
+      "position": "GK",
+      "decile": 2,
+      "mean_predicted": 0.0294080931,
+      "mean_actual": 0.0547504026,
+      "n": 621
+    },
+    {
+      "position": "GK",
+      "decile": 3,
+      "mean_predicted": 0.0366767707,
+      "mean_actual": 0.0337078652,
+      "n": 623
+    },
+    {
+      "position": "GK",
+      "decile": 4,
+      "mean_predicted": 0.0449440282,
+      "mean_actual": 0.038647343,
+      "n": 621
+    },
+    {
+      "position": "GK",
+      "decile": 5,
+      "mean_predicted": 0.0613234991,
+      "mean_actual": 0.0899053628,
+      "n": 634
+    },
+    {
+      "position": "GK",
+      "decile": 6,
+      "mean_predicted": 0.1486920235,
+      "mean_actual": 0.1428571429,
+      "n": 623
+    },
+    {
+      "position": "GK",
+      "decile": 7,
+      "mean_predicted": 1.3931407388,
+      "mean_actual": 1.480952381,
+      "n": 630
+    },
+    {
+      "position": "GK",
+      "decile": 8,
+      "mean_predicted": 2.8918475501,
+      "mean_actual": 2.8314785374,
+      "n": 629
+    },
+    {
+      "position": "GK",
+      "decile": 9,
+      "mean_predicted": 3.7653232668,
+      "mean_actual": 3.4047619048,
+      "n": 630
+    },
+    {
+      "position": "MID",
+      "decile": 0,
+      "mean_predicted": -0.048208097,
+      "mean_actual": 0.003776435,
+      "n": 2648
+    },
+    {
+      "position": "MID",
+      "decile": 1,
+      "mean_predicted": 0.0149904442,
+      "mean_actual": 0.0202593193,
+      "n": 2468
+    },
+    {
+      "position": "MID",
+      "decile": 2,
+      "mean_predicted": 0.0628416246,
+      "mean_actual": 0.0419443356,
+      "n": 2551
+    },
+    {
+      "position": "MID",
+      "decile": 3,
+      "mean_predicted": 0.1854101815,
+      "mean_actual": 0.096206492,
+      "n": 2557
+    },
+    {
+      "position": "MID",
+      "decile": 4,
+      "mean_predicted": 0.4923492745,
+      "mean_actual": 0.347553816,
+      "n": 2555
+    },
+    {
+      "position": "MID",
+      "decile": 5,
+      "mean_predicted": 0.9631604846,
+      "mean_actual": 0.9796477495,
+      "n": 2555
+    },
+    {
+      "position": "MID",
+      "decile": 6,
+      "mean_predicted": 1.5306563255,
+      "mean_actual": 1.6604068858,
+      "n": 2556
+    },
+    {
+      "position": "MID",
+      "decile": 7,
+      "mean_predicted": 2.0555908453,
+      "mean_actual": 2.1491193738,
+      "n": 2555
+    },
+    {
+      "position": "MID",
+      "decile": 8,
+      "mean_predicted": 2.6299371294,
+      "mean_actual": 2.8505477308,
+      "n": 2556
+    },
+    {
+      "position": "MID",
+      "decile": 9,
+      "mean_predicted": 3.9981184525,
+      "mean_actual": 3.9925665102,
+      "n": 2556
+    }
+  ]
+}

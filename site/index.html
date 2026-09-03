@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FPL Expected Points -- v0.2 backtest</title>
+<meta name="theme-color" content="#0b1220">
+<meta name="description" content="Backtest results for a from-scratch Fantasy Premier League expected-points model: model vs. naive baselines vs. FPL's own xP.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FPL xP">
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg-card: #131c2e;
+    --border: #24304a;
+    --text: #e7ecf6;
+    --text-dim: #9fb0cc;
+    --accent: #38bd94;
+    --accent-2: #f0b429;
+    --red: #e5533d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 100vw; overflow-x: hidden;
+  }
+  a { color: var(--accent); }
+  header {
+    padding: 20px 16px 12px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
+  }
+  header h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--text-dim); font-size: 0.85rem; }
+  main { padding: 12px 16px 48px; max-width: 720px; margin: 0 auto; }
+  section { margin: 28px 0; }
+  h2 { font-size: 1.05rem; border-left: 4px solid var(--accent); padding-left: 10px; margin: 0 0 10px; }
+  p.lede { color: var(--text-dim); font-size: 0.92rem; line-height: 1.5; margin: 0 0 14px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 10px;
+  }
+  .stat-row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; }
+  .stat-row + .stat-row { border-top: 1px solid var(--border); }
+  .stat-label { color: var(--text-dim); font-size: 0.85rem; }
+  .stat-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .pill.win { background: rgba(56,189,148,0.18); color: var(--accent); }
+  .pill.loss { background: rgba(229,83,61,0.18); color: var(--red); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  caption { text-align: left; color: var(--text-dim); font-size: 0.8rem; margin-bottom: 6px; }
+  th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--text-dim); font-weight: 600; font-size: 0.78rem; }
+  .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+  .table-wrap table { min-width: 480px; }
+
+  img.plot { width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); display: block; margin-bottom: 8px; background: #fff; }
+  figcaption { color: var(--text-dim); font-size: 0.8rem; margin: 0 0 20px; }
+
+  details { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
+  details summary { cursor: pointer; padding: 8px 0; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+  details[open] summary { margin-bottom: 6px; }
+
+  footer { color: var(--text-dim); font-size: 0.78rem; text-align: center; padding: 20px 16px 40px; }
+
+  button.tab {
+    min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text); font-size: 0.85rem; margin-right: 6px; margin-bottom: 6px;
+  }
+  button.tab.active { background: var(--accent); color: #06251c; border-color: var(--accent); font-weight: 700; }
+
+  /* Mobile: collapse tables to stacked cards, no horizontal scroll needed. */
+  @media (max-width: 600px) {
+    .table-wrap { border: none; overflow: visible; }
+    .table-wrap table, .table-wrap thead, .table-wrap tbody, .table-wrap th, .table-wrap td, .table-wrap tr {
+      display: block; min-width: 0;
+    }
+    .table-wrap thead { display: none; }
+    .table-wrap tr {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 12px; margin-bottom: 10px;
+    }
+    .table-wrap td {
+      display: flex; justify-content: space-between; align-items: center;
+      text-align: right; border-bottom: 1px solid var(--border); padding: 8px 0; min-height: 32px;
+    }
+    .table-wrap td:last-child { border-bottom: none; }
+    .table-wrap td::before { content: attr(data-label); color: var(--text-dim); font-size: 0.78rem; text-align: left; }
+  }
+  #status { color: var(--text-dim); padding: 40px 16px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>FPL Expected Points -- v0.2</h1>
+  <p id="subhead">Loading backtest results&hellip;</p>
+</header>
+
+<main>
+  <div id="status">Fetching site data&hellip;</div>
+  <div id="app" hidden>
+
+    <section id="headline-section">
+      <h2>Headline: model vs. baselines vs. FPL's own xP</h2>
+      <p class="lede">All positions pooled, on the frozen test seasons. Two numbers per method: over every row, and restricted to gameweeks the player actually played (<code>minutes &gt; 0</code>) -- see "what this does and doesn't do" below for why that split matters.</p>
+      <div class="table-wrap"><table id="headline-table"></table></div>
+    </section>
+
+    <section id="minutes-section">
+      <h2>The two skills, split out</h2>
+      <p class="lede">"Predict ~0 for players who won't play" and "rank the players who do play" are different skills. The all-rows column is dominated by the first; the minutes&gt;0 column isolates the second.</p>
+      <div id="minutes-cards"></div>
+    </section>
+
+    <section id="position-section">
+      <h2>Per-position breakdown</h2>
+      <p class="lede">Model only, minutes &gt; 0 rows. Tap a position to filter.</p>
+      <div id="position-tabs"></div>
+      <div class="table-wrap"><table id="position-table"></table></div>
+    </section>
+
+    <section id="topk-section">
+      <h2>Decision metric: top-k picks</h2>
+      <p class="lede">Within each gameweek, take each method's top-k predicted players. Precision@k = fraction that were also the actual top-k scorers. Realised points = what those picks actually returned, vs. a perfect-hindsight oracle as the ceiling.</p>
+      <div class="table-wrap"><table id="topk-table"></table></div>
+    </section>
+
+    <section id="plots-section">
+      <h2>Plots</h2>
+      <figure><img class="plot" src="plots/calibration.png" alt="Calibration: actual vs predicted points by predicted decile, per position"><figcaption>Calibration -- systematic under-prediction of the top decile is the failure mode that breaks captaincy picks.</figcaption></figure>
+      <figure><img class="plot" src="plots/topk_realised_points.png" alt="Realised points of top-k picks: model vs baselines vs oracle"><figcaption>Realised points of top-k picks per gameweek.</figcaption></figure>
+      <figure><img class="plot" src="plots/rmse_by_position.png" alt="RMSE by position, players who played"><figcaption>RMSE by position (minutes &gt; 0 rows only).</figcaption></figure>
+      <figure><img class="plot" src="plots/spearman_by_gameweek.png" alt="Per-gameweek Spearman rank correlation"><figcaption>Per-gameweek rank correlation over the whole test window.</figcaption></figure>
+      <figure><img class="plot" src="plots/predicted_vs_actual.png" alt="Predicted vs actual points, by position"><figcaption>Predicted vs. actual points, by position.</figcaption></figure>
+    </section>
+
+    <section id="about-section">
+      <h2>What this model does and doesn't do</h2>
+      <details open>
+        <summary>Plain-English summary</summary>
+        <p class="lede" style="margin-top:6px">
+          This predicts a player's points for a single upcoming Premier League gameweek, using only information available before that gameweek's deadline: recent form (goals/assists/minutes/bonus, decomposed into "how much do they play" and "how good are they when they do"), the upcoming fixture's difficulty and opponent strength, and market signals like price and ownership. It is a <strong>nowcast for one gameweek</strong>, not a season-long projection, and not a next-gameweek forecast built from data after the deadline.
+        </p>
+        <p class="lede">
+          It beats simple "average of recent gameweeks" baselines on raw point-estimate accuracy (RMSE/MAE) in every position. It does <strong>not</strong> reliably beat FPL's own published <code>xP</code> at the thing that actually matters for picking a squad: ranking players within a gameweek and picking a good top-11/15. See the headline table's Spearman and top-k columns above for exactly how much of a gap that is.
+        </p>
+        <p class="lede">
+          Known gaps: it has no idea who takes penalties or set pieces (that information isn't in the underlying data source at all). It can't see injuries or team-news announced after the data was last pulled. Its GW1-of-season predictions for players without a matched prior season fall back to positional averages, so a new signing's or promoted-team player's first gameweek is a weaker prediction than a returning player's.
+        </p>
+      </details>
+    </section>
+
+    <section id="run-section">
+      <h2>Run details</h2>
+      <div class="card" id="run-details"></div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  Generated by the fplxp pipeline (<code>python -m fplxp.backtest</code>). Source: <a href="https://github.com/McKechnieLabs/fpl-xp" target="_blank" rel="noopener">McKechnieLabs/fpl-xp</a>.
+</footer>
+
+<script>
+(function () {
+  const statusEl = document.getElementById('status');
+  const appEl = document.getElementById('app');
+  const subhead = document.getElementById('subhead');
+
+  const METHOD_ORDER = ['Model', 'Baseline: FPL xP', 'Baseline: last-5 mean', 'Baseline: season-to-date mean'];
+  const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
+
+  function fmt(n, d) {
+    if (n === null || n === undefined || Number.isNaN(n)) return '--';
+    return Number(n).toFixed(d === undefined ? 3 : d);
+  }
+
+  function el(tag, attrs, children) {
+    const e = document.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => {
+      if (k === 'text') e.textContent = v;
+      else if (k === 'data') Object.entries(v).forEach(([dk, dv]) => e.dataset[dk] = dv);
+      else e.setAttribute(k, v);
+    });
+    (children || []).forEach(c => e.appendChild(c));
+    return e;
+  }
+
+  function buildHeadlineTable(pointMetrics) {
+    const table = document.getElementById('headline-table');
+    const rows = pointMetrics.filter(r => r.position === 'ALL');
+    const thead = el('thead', {}, [el('tr', {}, [
+      el('th', { text: 'Method' }),
+      el('th', { text: 'RMSE' }),
+      el('th', { text: 'RMSE (played)' }),
+      el('th', { text: 'Spearman' }),
+      el('th', { text: 'Spearman (played)' }),
+    ])]);
+    const tbody = el('tbody');
+    METHOD_ORDER.forEach(method => {
+      const r = rows.find(x => x.method === method);
+      if (!r) return;
+      tbody.appendChild(el('tr', {}, [
+        el('td', { 'data-label': 'Method', text: method }),
+        el('td', { 'data-label': 'RMSE', text: fmt(r.rmse) }),
+        el('td', { 'data-label': 'RMSE (played)', text: fmt(r.rmse_played) }),
+        el('td', { 'data-label': 'Spearman', text: fmt(r.spearman) }),
+        el('td', { 'data-label': 'Spearman (played)', text: fmt(r.spearman_played) }),
+      ]));
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+  }
+
+  function buildMinutesCards(pointMetrics) {
+    const container = document.getElementById('minutes-cards');
+    const modelAll = pointMetrics.find(r => r.method === 'Model' && r.position === 'ALL');
+    const others = pointMetrics.filter(r => r.method !== 'Model' && r.position === 'ALL');
+    const bestRmsePlayed = others.reduce((a, b) => (b.rmse_played < a.rmse_played ? b : a));
+    const bestSpearmanPlayed = others.reduce((a, b) => (b.spearman_played > a.spearman_played ? b : a));
+
+    const rmseWin = modelAll.rmse_played < bestRmsePlayed.rmse_played;
+    const spearmanWin = modelAll.spearman_played > bestSpearmanPlayed.spearman_played;
+
+    const card = el('div', { class: 'card' }, [
+      el('div', { class: 'stat-row' }, [
+        el('span', { class: 'stat-label', text: 'RMSE, minutes > 0 (vs. best baseline)' }),
+        el('span', {}, [
+          el('span', { class: 'stat-value', text: fmt(modelAll.rmse_played) + ' vs ' + fmt(bestRmsePlayed.rmse_played) + ' ' }),
+          el('span', { class: 'pill ' + (rmseWin ? 'win' : 'loss'), text: rmseWin ? 'model wins' : 'model loses' }),
+        ]),
+      ]),
+      el('div', { class: 'stat-row' }, [
+        el('span', { class: 'stat-label', text: 'Spearman, minutes > 0 (vs. best baseline)' }),
+        el('span', {}, [
+          el('span', { class: 'stat-value', text: fmt(modelAll.spearman_played) + ' vs ' + fmt(bestSpearmanPlayed.spearman_played) + ' ' }),
+          el('span', { class: 'pill ' + (spearmanWin ? 'win' : 'loss'), text: spearmanWin ? 'model wins' : 'model loses' }),
+        ]),
+      ]),
+    ]);
+    container.appendChild(card);
+  }
+
+  function buildPositionTable(pointMetrics, position) {
+    const table = document.getElementById('position-table');
+    table.innerHTML = '';
+    const rows = pointMetrics.filter(r => r.position === position);
+    const thead = el('thead', {}, [el('tr', {}, [
+      el('th', { text: 'Method' }),
+      el('th', { text: 'RMSE (played)' }),
+      el('th', { text: 'MAE (played)' }),
+      el('th', { text: 'Spearman (played)' }),
+      el('th', { text: 'n played' }),
+    ])]);
+    const tbody = el('tbody');
+    METHOD_ORDER.forEach(method => {
+      const r = rows.find(x => x.method === method);
+      if (!r) return;
+      tbody.appendChild(el('tr', {}, [
+        el('td', { 'data-label': 'Method', text: method }),
+        el('td', { 'data-label': 'RMSE (played)', text: fmt(r.rmse_played) }),
+        el('td', { 'data-label': 'MAE (played)', text: fmt(r.mae_played) }),
+        el('td', { 'data-label': 'Spearman (played)', text: fmt(r.spearman_played) }),
+        el('td', { 'data-label': 'n played', text: r.n_played }),
+      ]));
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+  }
+
+  function buildPositionTabs(pointMetrics) {
+    const container = document.getElementById('position-tabs');
+    let current = POSITIONS[0];
+    function render() {
+      container.innerHTML = '';
+      POSITIONS.forEach(pos => {
+        const btn = el('button', { class: 'tab' + (pos === current ? ' active' : ''), text: pos, type: 'button' });
+        btn.addEventListener('click', () => { current = pos; render(); });
+        container.appendChild(btn);
+      });
+      buildPositionTable(pointMetrics, current);
+    }
+    render();
+  }
+
+  function buildTopkTable(topkMetrics) {
+    const table = document.getElementById('topk-table');
+    const order = METHOD_ORDER.concat(['Oracle (perfect hindsight)']);
+    const ks = [...new Set(topkMetrics.map(r => r.k))].sort((a, b) => a - b);
+    const thead = el('thead', {}, [el('tr', {}, [
+      el('th', { text: 'Method' }),
+      ...ks.map(k => el('th', { text: 'k=' + k + ' pts' })),
+    ])]);
+    const tbody = el('tbody');
+    order.forEach(method => {
+      const cells = ks.map(k => {
+        const r = topkMetrics.find(x => x.method === method && x.k === k);
+        return el('td', { 'data-label': 'k=' + k + ' pts', text: r ? fmt(r.realised_points_of_topk, 1) : '--' });
+      });
+      tbody.appendChild(el('tr', {}, [el('td', { 'data-label': 'Method', text: method }), ...cells]));
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+  }
+
+  function buildRunDetails(meta) {
+    const container = document.getElementById('run-details');
+    const rows = [
+      ['Selected model', meta.selected_model],
+      ['Train seasons', meta.train_seasons.join(', ')],
+      ['Validation season', meta.val_season.join(', ')],
+      ['Test seasons (frozen)', meta.test_seasons.join(', ')],
+      ['Test rows', meta.n_test_rows.toLocaleString()],
+      ['Test rows with minutes > 0', meta.n_test_rows_played.toLocaleString()],
+    ];
+    rows.forEach(([label, value]) => {
+      container.appendChild(el('div', { class: 'stat-row' }, [
+        el('span', { class: 'stat-label', text: label }),
+        el('span', { class: 'stat-value', text: String(value) }),
+      ]));
+    });
+    subhead.textContent = `Model: ${meta.selected_model} · Test: ${meta.test_seasons.join(' + ')}`;
+  }
+
+  fetch('data/metrics.json')
+    .then(r => { if (!r.ok) throw new Error('metrics.json ' + r.status); return r.json(); })
+    .then(meta => {
+      buildHeadlineTable(meta.point_metrics);
+      buildMinutesCards(meta.point_metrics);
+      buildPositionTabs(meta.point_metrics);
+      buildTopkTable(meta.topk_metrics);
+      buildRunDetails(meta);
+      statusEl.hidden = true;
+      appEl.hidden = false;
+    })
+    .catch(err => {
+      statusEl.textContent = 'Could not load results (' + err.message + '). This page needs to be served over HTTP, and site/data/metrics.json must exist -- run `make all` first.';
+    });
+})();
+</script>
+</body>
+</html>
