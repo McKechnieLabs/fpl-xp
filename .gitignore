@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Cached raw data pulled from the vaastav/Fantasy-Premier-League repo.
+# Re-downloaded on demand by fplxp.data — see README for reproduction steps.
+data/raw/
