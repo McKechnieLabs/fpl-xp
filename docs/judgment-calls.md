@@ -158,6 +158,58 @@ are structurally higher than a teammate with similar general output) that
 this data source simply doesn't carry. Not approximated in v0.2; noted
 here as a known gap rather than silently absent.
 
+## 14. `baseline_xp`'s per-gameweek Spearman line has real gaps (not a bug)
+
+`reports/spearman_by_gameweek.png` shows `Baseline: FPL xP` missing entire
+gameweeks in the test seasons (e.g. 2024-25 GW32, GW34). Checked directly:
+in those specific gameweeks, `xP` is a single constant value across every
+row in the source `merged_gw.csv` (nunique=1) -- a data-quality gap in the
+upstream vaastav dump for those gameweeks, not a bug in
+`mean_gw_spearman`, which correctly skips a slate with no variance in the
+predictor (undefined correlation) rather than fabricating a number for it.
+No fix applied; noted here so the gap in the plot isn't mistaken for a
+plotting bug.
+
+## 15. GitHub Pages served from a `gh-pages` branch, not `docs/`
+
+The brief allows either. **Picked: `gh-pages` branch.** This repo's
+`docs/` already holds project decision records
+(`judgment-calls.md`, `evaluation-plan.md`, `leakage-audit.md`) --
+pointing GitHub Pages at `docs/` would either publish those alongside the
+app (confusing: a phone visitor doesn't want the leakage audit) or force
+renaming the site's own directory away from the `site/` path the brief
+names explicitly. A `gh-pages` branch keeps the published site
+(`site/index.html` at its root) completely separate from the source
+tree's own docs, and is regenerated wholesale on every run (see #16) --
+nothing there is ever hand-edited, so treating it as fully disposable
+generated output is safe.
+
+## 16. `gh-pages` branch is force-pushed wholesale, not diffed/merged
+
+`.github/workflows/weekly-refresh.yml`'s publish step replaces the entire
+`gh-pages` branch content with the current `site/` directory and
+force-pushes. **Picked** over incrementally updating it because the
+branch's *only* content is generated output (`site/` verbatim) with no
+history worth preserving commit-by-commit; force-pushing a fully
+regenerated branch is simpler and can't drift from `site/`'s actual
+current state. This is the one place in the project a force-push is
+used, and it's scoped to a branch that never carries hand-written commits
+(see the Git Safety Protocol note in CLAUDE.md as it applies to the
+`gh-pages` branch specifically).
+
+## 17. Live-season predictions are out of scope; `data.py` is swappable regardless
+
+Per the brief: predicting the *current, in-progress* season would need
+FPL's own `bootstrap-static` (current prices/ownership/teams) and
+`fixtures` endpoints, not the historical vaastav CSV dumps this project
+uses, and those live endpoints aren't reachable from this project's usual
+sandboxed dev environment (only the weekly GitHub Actions runner has the
+egress for it). **Picked:** don't implement it for v0.2, but do restructure
+`fplxp/data.py` around a `DataSource` interface first
+(`HistoricalCSVDataSource` / `LiveFPLDataSource`) specifically so that
+gap has one obvious, already-proven-swappable place to fill in later,
+rather than leaving live-data support as a hypothetical refactor.
+
 ---
 
 # v0.1 log (original entries, unchanged)
