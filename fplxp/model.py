@@ -50,17 +50,25 @@ ESTIMATORS = {
 
 
 class PositionModels:
-    """One fitted regressor + imputation medians per position."""
+    """One fitted regressor + imputation medians per position.
 
-    def __init__(self, estimator_kind: str = "gbr"):
+    feature_columns defaults to fplxp.features.FEATURE_COLUMNS but can be
+    overridden -- used by fplxp.model_selection's pts_form ablation
+    experiment (docs/judgment-calls.md) to compare the shipped feature set
+    against the same set plus the raw pts_form3/pts_form5 rolling-mean
+    columns, without duplicating the fit/predict logic.
+    """
+
+    def __init__(self, estimator_kind: str = "gbr", feature_columns: list[str] | None = None):
         self.estimator_kind = estimator_kind
+        self.feature_columns = feature_columns or FEATURE_COLUMNS
         self.models: dict[str, object] = {}
         self.medians: dict[str, pd.Series] = {}
 
     def fit(self, train_df: pd.DataFrame) -> "PositionModels":
         for pos in POSITIONS:
             sub = train_df[train_df["position"] == pos]
-            X = sub[FEATURE_COLUMNS]
+            X = sub[self.feature_columns]
             medians = X.median()
             X = X.fillna(medians)
             y = sub[TARGET_COLUMN]
@@ -80,14 +88,14 @@ class PositionModels:
             mask = df["position"] == pos
             if not mask.any():
                 continue
-            X = df.loc[mask, FEATURE_COLUMNS].fillna(self.medians[pos])
+            X = df.loc[mask, self.feature_columns].fillna(self.medians[pos])
             preds.loc[mask] = self.models[pos].predict(X)
         return preds
 
     def feature_importances(self, pos: str) -> pd.Series:
         model = self.models[pos]
         if hasattr(model, "feature_importances_"):
-            return pd.Series(model.feature_importances_, index=FEATURE_COLUMNS).sort_values(ascending=False)
+            return pd.Series(model.feature_importances_, index=self.feature_columns).sort_values(ascending=False)
         return pd.Series(dtype=float)  # HistGradientBoosting* has no native importances
 
 

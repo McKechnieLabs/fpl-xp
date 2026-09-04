@@ -9,11 +9,18 @@ Pipeline:
      as "played 60+".
   2. Reindex each player's rows to a complete (season, element, round)
      grid over their active span (first..last round they have any row in
-     that season). Gaps -- gameweeks where their team had no fixture, or
-     the source data simply has no row -- become explicit blank rows:
-     is_blank=True, num_fixtures=0, all counting stats 0. This makes
-     rolling windows span *calendar* gameweeks rather than silently
-     skipping straight past a blank as if it never happened.
+     that season). A gap is one of two genuinely different things, and
+     they're now told apart using the team's real fixture list
+     (fixtures.csv): if the player's team had NO fixture that round, it's
+     a true blank (is_blank=True, num_fixtures=0, all stats 0). If the
+     team DID play and the row is simply missing from the source dump
+     (an unregistered/omitted player), num_fixtures is set to the team's
+     actual fixture count that round and is_blank stays False -- treated
+     like any other unused-squad-member row, since 0 is still the least
+     wrong guess for what an omitted player scored, but num_fixtures=0
+     would have been factually wrong. Either way this makes rolling
+     windows span *calendar* gameweeks rather than silently skipping
+     straight past a gap as if it never happened.
   3. Join per-team fixture info from fixtures.csv/teams.csv: goals
      for/against (for a team-level rolling GF/GA feature), fixture
      difficulty (min/max/mean across the gameweek's fixtures), and
@@ -30,9 +37,11 @@ Pipeline:
      pricing-algorithm wisdom, not football signal we computed.
   6. For a player's gameweek-1 row (no in-season history yet), missing
      rolling features are backfilled from their *prior season's* per-90
-     rates and average minutes (matched by name, since element ids are
-     not stable across seasons) rather than left for positional-median
-     imputation, when a prior season exists for them.
+     rates and average minutes (matched by `code`, FPL's own persistent
+     player identifier -- `element` is NOT stable across seasons, e.g.
+     Harry Kane is element 357/427/500 across three different seasons)
+     rather than left for positional-median imputation, when a prior
+     season exists for them.
 
 LEAKAGE RULE: any feature derived from match events (goals, minutes,
 points, bps, ict, saves, clean sheets, team goals for/against, whether
@@ -142,22 +151,30 @@ def _aggregate_player_gw(gw: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
-def _reindex_blank_gameweeks(df: pd.DataFrame) -> pd.DataFrame:
-    """Fill gaps in each player's (season, round) span with explicit blank rows.
+def _reindex_blank_gameweeks(df: pd.DataFrame, team_schedule: dict) -> pd.DataFrame:
+    """Fill gaps in each player's (season, round) span with explicit rows.
 
-    merged_gw.csv has no row at all for a gameweek where the player's team
-    had no fixture (or, occasionally, where the source data simply has a
-    gap). Left alone, a rolling window then silently treats "2 gameweeks
-    ago" as "the last gameweek we have data for" -- i.e. it skips blanks
-    instead of seeing them. Reindexing makes that skip visible: a blank
-    gameweek becomes a real row with zero output, so it correctly drags
-    down a rolling average the way an actual 0-point blank would for a
-    human following the player.
+    merged_gw.csv has no row at all for a gameweek where either (a) the
+    player's team had no fixture (a true blank), or (b) the team DID play
+    but the source data simply has no row for this player (an
+    unregistered/omitted player -- e.g. sold, injured and dropped from the
+    squad list entirely). `team_schedule` -- {(season, team_id, round):
+    team's actual fixture count that round}, built from fixtures.csv by
+    the caller -- tells the two apart: case (a) gets is_blank=True,
+    num_fixtures=0; case (b) gets is_blank=False and the team's real
+    num_fixtures, since claiming zero scheduled fixtures for a team that
+    played would be factually wrong. Both cases still get zeroed counting
+    stats (0 is the least-wrong guess for what an omitted player scored),
+    so rolling windows span *calendar* gameweeks either way rather than
+    silently skipping straight past a gap as if it never happened.
+
+    Requires `team_id` and `code` already merged onto `df` (so they can be
+    forward-filled across a gap along with the other identity columns).
     """
     fill_zero = [c for c in _SUM_COLS + _SUM_COLS_FLOAT] + [
         "num_fixtures", "max_fixture_minutes", "n_fixtures_60plus", "played_60", "home_fraction", "xP",
     ]
-    carry_forward = ["name", "position", "team", "value", "selected"]
+    carry_forward = ["name", "position", "team", "team_id", "code", "value", "selected"]
 
     out_parts = []
     for (season, element), sub in df.groupby(["season", "element"], sort=False):
@@ -168,9 +185,18 @@ def _reindex_blank_gameweeks(df: pd.DataFrame) -> pd.DataFrame:
         sub["season"] = season
         sub["element"] = element
         was_missing = sub["is_blank"].isna()
-        sub[fill_zero] = sub[fill_zero].fillna(0)
         sub[carry_forward] = sub[carry_forward].ffill()
-        sub["is_blank"] = was_missing
+
+        if was_missing.any():
+            team_played = pd.Series(
+                [team_schedule.get((season, tid, rnd), 0) for tid, rnd in zip(sub["team_id"], sub.index)],
+                index=sub.index,
+            )
+            is_data_gap = was_missing & (team_played > 0)
+            sub.loc[is_data_gap, "num_fixtures"] = team_played[is_data_gap]
+
+        sub[fill_zero] = sub[fill_zero].fillna(0)
+        sub["is_blank"] = was_missing & (sub["num_fixtures"] == 0)
         out_parts.append(sub.reset_index())
 
     out = pd.concat(out_parts, ignore_index=True)
@@ -230,6 +256,7 @@ def _team_fixture_features(fixtures: pd.DataFrame, teams: pd.DataFrame) -> pd.Da
     both = pd.concat([home, away], ignore_index=True)
 
     team_gw = both.groupby(["season", "team_id", "event"], as_index=False).agg(
+        num_fixtures=("goals_for", "size"),
         goals_for=("goals_for", "sum"),
         goals_against=("goals_against", "sum"),
         fixture_difficulty_min=("difficulty", "min"),
@@ -298,9 +325,22 @@ def _add_player_rolling(df: pd.DataFrame) -> pd.DataFrame:
             sum_stat_w = shifted(src).groupby(key).transform(
                 lambda x, w=w: x.rolling(w, min_periods=1).sum()
             )
-            df[f"{prefix}_per90_form{w}"] = np.where(
-                sum_mins_w > 0, sum_stat_w / sum_mins_w * 90, np.nan
-            )
+            # Three cases: (1) sum_mins_w > 0 -> a real per-90 rate. (2)
+            # sum_mins_w == 0 exactly (the window has real history, all of
+            # it 0 minutes -- e.g. an unused sub or a long-term injury) ->
+            # 0.0, not NaN: there is no evidence of output, which is a
+            # different, stronger claim than "we don't know" and must not
+            # be washed out to the position median at fit time (that would
+            # describe an injured player as league-average quality). (3)
+            # sum_mins_w is NaN (no history at all yet this season) -> stays
+            # NaN, genuinely unknown, left for prior-season carryover /
+            # median imputation.
+            per90 = pd.Series(np.nan, index=df.index)
+            has_mins = sum_mins_w > 0
+            per90[has_mins] = sum_stat_w[has_mins] / sum_mins_w[has_mins] * 90
+            zero_mins = sum_mins_w == 0
+            per90[zero_mins] = 0.0
+            df[f"{prefix}_per90_form{w}"] = per90
         # pts_form{w}: plain rolling mean of raw points, kept ONLY to drive
         # the two naive baselines (fplxp.baselines) -- not a model feature,
         # since per-90 quality + volume are the decomposed versions of it.
@@ -361,15 +401,20 @@ for _w in ROLLING_WINDOWS:
 
 
 def _prior_season_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per (season, name): that whole season's per-90 rates / rates,
-    to be looked up as *next* season's GW1 carryover."""
-    g = df.groupby(["season", "name"])
+    """One row per (season, code): that whole season's per-90 rates / rates,
+    to be looked up as *next* season's GW1 carryover. Keyed by `code`
+    (FPL's persistent player id), not `name` or `element` -- `element`
+    resets every season, and player name strings aren't even consistent
+    across seasons in this data source (e.g. "Ben White" one year,
+    "Benjamin White" the next), so a name join under- and mis-matches in
+    a way `code` doesn't. See docs/judgment-calls.md."""
+    g = df.groupby(["season", "code"])
     total_mins = g["minutes"].sum()
     n_gw = g["round"].count()
     summary = pd.DataFrame({
         "prior_mins_per_gw": total_mins / n_gw,
         "prior_played60_rate": g["played_60"].mean(),
-        "prior_starts_rate": (df["minutes"] > 0).astype(int).groupby([df["season"], df["name"]]).mean(),
+        "prior_starts_rate": (df["minutes"] > 0).astype(int).groupby([df["season"], df["code"]]).mean(),
         "prior_cs_rate": g["clean_sheets"].mean(),
     })
     for stat, prefix in _PER90_STAT_MAP.items():
@@ -388,7 +433,7 @@ def _add_prior_season_carryover(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
     df["prior_season"] = df["season"].map(prior_season_of)
-    df = df.merge(summary, on=["prior_season", "name"], how="left", suffixes=("", "_prior"))
+    df = df.merge(summary, on=["prior_season", "code"], how="left", suffixes=("", "_prior"))
     df["has_prior_season"] = df[list(_CARRYOVER_MAP.values())[0]].notna().astype(int)
 
     is_gw1 = (df["round"] == 1)
@@ -431,20 +476,29 @@ SAME_ROUND_FEATURE_COLUMNS = [
 
 FEATURE_COLUMNS = ROLLING_FEATURE_COLUMNS + SAME_ROUND_FEATURE_COLUMNS + MARKET_FEATURE_COLUMNS
 
-ID_COLUMNS = ["season", "element", "round", "name", "position", "team", "value", "selected", "is_blank"]
+ID_COLUMNS = ["season", "element", "code", "round", "name", "position", "team", "value", "selected", "is_blank"]
 TARGET_COLUMN = "total_points"
 
 
 def build_feature_table(seasons: list[str]) -> pd.DataFrame:
-    gw, fixtures, teams = load_all(seasons)
+    gw, fixtures, teams, players = load_all(seasons)
     player_gw = _aggregate_player_gw(gw)
-    player_gw = _reindex_blank_gameweeks(player_gw)
 
-    team_gw = _team_fixture_features(fixtures, teams)
-    team_gw = _add_team_rolling(team_gw)
-
+    # team_id and code must be known BEFORE reindexing: team_id so a filled
+    # gap can be looked up against the team's real fixture schedule
+    # (true blank vs. data gap -- see _reindex_blank_gameweeks), code so it
+    # forward-fills across a gap like any other identity column.
     name_to_id = teams[["season", "id", "name"]].rename(columns={"id": "team_id", "name": "team"})
     player_gw = player_gw.merge(name_to_id, on=["season", "team"], how="left")
+    player_gw = player_gw.merge(players[["season", "element", "code"]], on=["season", "element"], how="left")
+
+    team_gw = _team_fixture_features(fixtures, teams)
+    team_schedule = {
+        (row.season, row.team_id, row.event): row.num_fixtures for row in team_gw.itertuples()
+    }
+    team_gw = _add_team_rolling(team_gw)
+
+    player_gw = _reindex_blank_gameweeks(player_gw, team_schedule)
 
     team_gw_cols = [
         "season", "team_id", "event", "team_gf_form5", "team_ga_form5",

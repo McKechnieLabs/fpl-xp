@@ -138,13 +138,16 @@ def _synthetic_league(n_rounds=10, spike_round=6, spike_points=100):
                 "xP": 2.0,
             })
     gw = pd.DataFrame(gw_rows)
-    return gw, fixtures, teams
+    players_raw = pd.DataFrame(
+        [{"season": season, "element": element, "code": 10000 + element} for element, *_ in players]
+    )
+    return gw, fixtures, teams, players_raw
 
 
 @pytest.fixture
 def synthetic_feature_table():
-    gw, fixtures, teams = _synthetic_league()
-    with mock.patch("fplxp.features.load_all", return_value=(gw, fixtures, teams)):
+    gw, fixtures, teams, players_raw = _synthetic_league()
+    with mock.patch("fplxp.features.load_all", return_value=(gw, fixtures, teams, players_raw)):
         table = build_feature_table(["2099-00"])
     return table
 

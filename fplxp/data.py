@@ -1,9 +1,15 @@
 """Download and cache raw season CSVs, behind a swappable data-source interface.
 
-Only three files per season are needed:
+Four files per season are needed:
   - gws/merged_gw.csv  (per-fixture player rows: minutes, points, xP, ...)
   - fixtures.csv       (per-fixture team difficulty ratings, scores)
   - teams.csv          (team id -> name and strength ratings, for the season)
+  - players_raw.csv    (that season's element id -> `code`, FPL's own
+                         persistent player identifier -- unlike `element`,
+                         `code` is stable across seasons; e.g. Harry Kane is
+                         element 357/427/500 in three different seasons but
+                         code 78830 in all of them. Used for cross-season
+                         GW1 carryover matching -- see docs/judgment-calls.md.)
 
 `HistoricalCSVDataSource` (the only implementation used by this project)
 fetches them from the vaastav/Fantasy-Premier-League GitHub repo via plain
@@ -34,7 +40,7 @@ import pandas as pd
 
 from fplxp.config import GITHUB_RAW_BASE, MANIFEST_PATH, RAW_DIR
 
-_FILES = ["gws/merged_gw.csv", "fixtures.csv", "teams.csv"]
+_FILES = ["gws/merged_gw.csv", "fixtures.csv", "teams.csv", "players_raw.csv"]
 
 _FIXTURES_COLS = [
     "event",
@@ -72,6 +78,9 @@ class DataSource(ABC):
 
     @abstractmethod
     def teams(self, season: str) -> pd.DataFrame: ...
+
+    @abstractmethod
+    def players_raw(self, season: str) -> pd.DataFrame: ...
 
 
 def _load_manifest(path: Path = MANIFEST_PATH) -> dict:
@@ -159,6 +168,13 @@ class HistoricalCSVDataSource(DataSource):
         df["season"] = season
         return df
 
+    def players_raw(self, season: str) -> pd.DataFrame:
+        self._ensure_season_cached(season)
+        df = pd.read_csv(self.raw_dir / season / "players_raw.csv", usecols=["id", "code"])
+        df = df.rename(columns={"id": "element"})
+        df["season"] = season
+        return df
+
 
 class LiveFPLDataSource(DataSource):
     """Placeholder for a live-season source using FPL's own endpoints.
@@ -179,10 +195,14 @@ class LiveFPLDataSource(DataSource):
     def teams(self, season: str) -> pd.DataFrame:  # pragma: no cover
         raise NotImplementedError("live FPL source is out of scope for v0.2")
 
+    def players_raw(self, season: str) -> pd.DataFrame:  # pragma: no cover
+        raise NotImplementedError("live FPL source is out of scope for v0.2")
+
 
 def load_all(seasons: list[str], source: DataSource | None = None):
     source = source or HistoricalCSVDataSource()
     gw = pd.concat([source.merged_gw(s) for s in seasons], ignore_index=True)
     fixtures = pd.concat([source.fixtures(s) for s in seasons], ignore_index=True)
     teams = pd.concat([source.teams(s) for s in seasons], ignore_index=True)
-    return gw, fixtures, teams
+    players = pd.concat([source.players_raw(s) for s in seasons], ignore_index=True)
+    return gw, fixtures, teams, players

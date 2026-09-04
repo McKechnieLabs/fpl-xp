@@ -17,6 +17,15 @@ def _row(**overrides):
     return base
 
 
+def _with_team_id(df, team_id=1, code=42):
+    """_reindex_blank_gameweeks requires team_id/code already merged on
+    (they're forward-filled across a gap like any other identity column)."""
+    df = df.copy()
+    df["team_id"] = team_id
+    df["code"] = code
+    return df
+
+
 def test_gkp_normalised_to_gk_and_manager_position_dropped():
     rows = [
         _row(element=1, position="GKP"),
@@ -76,12 +85,13 @@ def test_xp_is_summed_across_double_gameweek():
 
 
 def test_blank_gameweek_reindex_fills_gap_with_zero_stats():
-    agg = _aggregate_player_gw(pd.DataFrame([
+    agg = _with_team_id(_aggregate_player_gw(pd.DataFrame([
         _row(round=1, total_points=5, minutes=90),
-        # round 2 missing entirely -- e.g. team had no fixture (blank GW)
+        # round 2 missing entirely -- team truly has no fixture that round
         _row(round=3, total_points=8, minutes=90),
-    ]))
-    out = _reindex_blank_gameweeks(agg).set_index("round")
+    ])))
+    team_schedule = {("2099-00", 1, 1): 1, ("2099-00", 1, 3): 1}  # no entry for round 2 -> true blank
+    out = _reindex_blank_gameweeks(agg, team_schedule).set_index("round")
 
     assert list(out.index) == [1, 2, 3]
     assert out.loc[2, "is_blank"] == True  # noqa: E712
@@ -92,24 +102,44 @@ def test_blank_gameweek_reindex_fills_gap_with_zero_stats():
     assert out.loc[3, "is_blank"] == False  # noqa: E712
 
 
+def test_data_gap_is_not_treated_as_a_blank_when_team_actually_played():
+    """A missing row where the team's fixture schedule shows they DID play
+    that round (an omitted/unregistered player, not a blank gameweek) must
+    get is_blank=False and the team's real fixture count, not num_fixtures=0."""
+    agg = _with_team_id(_aggregate_player_gw(pd.DataFrame([
+        _row(round=1, total_points=5, minutes=90),
+        # round 2 missing from the dump, but the team schedule below shows
+        # the team played (even a double gameweek) -- a data gap, not a blank.
+        _row(round=3, total_points=8, minutes=90),
+    ])))
+    team_schedule = {("2099-00", 1, 1): 1, ("2099-00", 1, 2): 2, ("2099-00", 1, 3): 1}
+    out = _reindex_blank_gameweeks(agg, team_schedule).set_index("round")
+
+    assert out.loc[2, "is_blank"] == False  # noqa: E712
+    assert out.loc[2, "num_fixtures"] == 2  # team's real fixture count, not 0
+    assert out.loc[2, "total_points"] == 0  # still no evidence the player scored anything
+
+
 def test_blank_gameweek_carries_forward_identity_and_market_fields():
-    agg = _aggregate_player_gw(pd.DataFrame([
+    agg = _with_team_id(_aggregate_player_gw(pd.DataFrame([
         _row(round=1, value=55, selected=2000, team="Arsenal"),
         _row(round=3, value=58, selected=2500, team="Arsenal"),
-    ]))
-    out = _reindex_blank_gameweeks(agg).set_index("round")
+    ])))
+    team_schedule = {("2099-00", 1, 1): 1, ("2099-00", 1, 3): 1}
+    out = _reindex_blank_gameweeks(agg, team_schedule).set_index("round")
     # Blank-week price/ownership carried forward from the last known value,
     # not zeroed (a player's price doesn't reset to 0 during a blank week).
     assert out.loc[2, "value"] == 55
     assert out.loc[2, "selected"] == 2000
     assert out.loc[2, "team"] == "Arsenal"
     assert out.loc[2, "name"] == "Player"
+    assert out.loc[2, "code"] == 42
 
 
 def test_reindex_does_not_extend_beyond_players_active_span():
     """A player who only appears rounds 3-5 should not get rows for 1-2 or 6+."""
-    agg = _aggregate_player_gw(pd.DataFrame([
+    agg = _with_team_id(_aggregate_player_gw(pd.DataFrame([
         _row(round=3), _row(round=4), _row(round=5),
-    ]))
-    out = _reindex_blank_gameweeks(agg)
+    ])))
+    out = _reindex_blank_gameweeks(agg, {})
     assert sorted(out["round"]) == [3, 4, 5]
