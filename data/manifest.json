@@ -11,6 +11,12 @@
     "sha256": "fb2a2bc54b6cfbe835a39183b096b382f7961e3828e7845e9288671cccca3ad8",
     "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2020-21/gws/merged_gw.csv"
   },
+  "2020-21/players_raw.csv": {
+    "downloaded_at": "2026-09-03T18:23:51.297399+00:00",
+    "last_verified_at": "2026-09-03T18:23:51.297399+00:00",
+    "sha256": "e3aff899fc2486bd96fe5d11d8c8e8c066dea36cc71de2bf8a85e8aa7245ed32",
+    "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2020-21/players_raw.csv"
+  },
   "2020-21/teams.csv": {
     "downloaded_at": "2026-09-03T16:49:48.030656+00:00",
     "last_verified_at": "2026-09-03T16:49:48.030656+00:00",
@@ -28,6 +34,12 @@
     "last_verified_at": "2026-09-03T16:49:48.454973+00:00",
     "sha256": "29770bbe305feee681f7122c0bd08451783366e0a3a9604194f528a0880f23de",
     "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2021-22/gws/merged_gw.csv"
+  },
+  "2021-22/players_raw.csv": {
+    "downloaded_at": "2026-09-03T18:23:51.802624+00:00",
+    "last_verified_at": "2026-09-03T18:23:51.802624+00:00",
+    "sha256": "78e185fb0b5c81f58c2b89f232358b1097bededc9852d4171edaea2e9d3bd887",
+    "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2021-22/players_raw.csv"
   },
   "2021-22/teams.csv": {
     "downloaded_at": "2026-09-03T16:49:49.002480+00:00",
@@ -47,6 +59,12 @@
     "sha256": "b78a6d0456141f9033c32fc4122931baae780ac4a4938683451b1fce7a4fdd15",
     "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2022-23/gws/merged_gw.csv"
   },
+  "2022-23/players_raw.csv": {
+    "downloaded_at": "2026-09-03T18:23:52.343086+00:00",
+    "last_verified_at": "2026-09-03T18:23:52.343086+00:00",
+    "sha256": "a874c12817bbf4d454e60a5765629742b528d4ad0c2f39f56e4fc89640605f7f",
+    "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2022-23/players_raw.csv"
+  },
   "2022-23/teams.csv": {
     "downloaded_at": "2026-09-03T16:49:50.001642+00:00",
     "last_verified_at": "2026-09-03T16:49:50.001642+00:00",
@@ -64,6 +82,12 @@
     "last_verified_at": "2026-09-03T16:49:50.429927+00:00",
     "sha256": "e9c09c8856f1c86b4f920f46ddd5033af83409439dfda53be925df2a3e7c8a9e",
     "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2023-24/gws/merged_gw.csv"
+  },
+  "2023-24/players_raw.csv": {
+    "downloaded_at": "2026-09-03T18:23:53.166210+00:00",
+    "last_verified_at": "2026-09-03T18:23:53.166210+00:00",
+    "sha256": "43d8cf5efb3d901f2499558c40b392b7f0ee22afe28030f36266ad29024c63d9",
+    "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2023-24/players_raw.csv"
   },
   "2023-24/teams.csv": {
     "downloaded_at": "2026-09-03T16:49:50.951775+00:00",
@@ -83,6 +107,12 @@
     "sha256": "5bbbcba6353b4c72ad273adcc8e3aa451946a826564679788f45b1cb3325b84e",
     "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2024-25/gws/merged_gw.csv"
   },
+  "2024-25/players_raw.csv": {
+    "downloaded_at": "2026-09-03T18:23:54.526499+00:00",
+    "last_verified_at": "2026-09-03T18:23:54.526499+00:00",
+    "sha256": "75686051b265cbe7755ac71213ecaad21b26ee1cc46a8bafbba19c39ce894b05",
+    "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2024-25/players_raw.csv"
+  },
   "2024-25/teams.csv": {
     "downloaded_at": "2026-09-03T16:49:51.963522+00:00",
     "last_verified_at": "2026-09-03T16:49:51.963522+00:00",
@@ -100,6 +130,12 @@
     "last_verified_at": "2026-09-03T16:49:52.497343+00:00",
     "sha256": "0d09f1f1cb1b5520ec8e2f25238aa652efe2a263d8ca7cb2b6538b27bf86727d",
     "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26/gws/merged_gw.csv"
+  },
+  "2025-26/players_raw.csv": {
+    "downloaded_at": "2026-09-03T18:23:55.263830+00:00",
+    "last_verified_at": "2026-09-03T18:23:55.263830+00:00",
+    "sha256": "412ce0172016f8f98f25177dc6de9f3cd2a8ec7a6135f9aa638d7fdee784d67b",
+    "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26/players_raw.csv"
   },
   "2025-26/teams.csv": {
     "downloaded_at": "2026-09-03T16:49:53.073727+00:00",

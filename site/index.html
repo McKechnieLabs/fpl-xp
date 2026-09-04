@@ -127,9 +127,15 @@
     </section>
 
     <section id="topk-section">
-      <h2>Decision metric: top-k picks</h2>
-      <p class="lede">Within each gameweek, take each method's top-k predicted players. Precision@k = fraction that were also the actual top-k scorers. Realised points = what those picks actually returned, vs. a perfect-hindsight oracle as the ceiling.</p>
+      <h2>Decision metric: top-k picks (unconstrained)</h2>
+      <p class="lede">Within each gameweek, take each method's top-k predicted players. Precision@k = fraction that were also the actual top-k scorers. Realised points = what those picks actually returned, vs. a perfect-hindsight oracle as the ceiling. <strong>No budget, formation, or per-club limit</strong> -- a genuine decision only at k=1 (captaincy); k=11/15 is an upper bound on ranking quality, not a proposed XI. See below for the constrained version.</p>
       <div class="table-wrap"><table id="topk-table"></table></div>
+    </section>
+
+    <section id="squad-section">
+      <h2>Decision metric: constrained top-11</h2>
+      <p class="lede">One XI per gameweek, greedily built within a fixed <span id="squad-formation"></span> formation, a &pound;100m budget, and a max of 3 players per club. This is the version that actually respects FPL's squad rules -- at the cost of being a heuristic (fixed formation, greedy fill within it) rather than an exact solve.</p>
+      <div class="table-wrap"><table id="squad-table"></table></div>
     </section>
 
     <section id="plots-section">
@@ -149,10 +155,13 @@
           This predicts a player's points for a single upcoming Premier League gameweek, using only information available before that gameweek's deadline: recent form (goals/assists/minutes/bonus, decomposed into "how much do they play" and "how good are they when they do"), the upcoming fixture's difficulty and opponent strength, and market signals like price and ownership. It is a <strong>nowcast for one gameweek</strong>, not a season-long projection, and not a next-gameweek forecast built from data after the deadline.
         </p>
         <p class="lede">
-          It beats simple "average of recent gameweeks" baselines on raw point-estimate accuracy (RMSE/MAE) in every position. It does <strong>not</strong> reliably beat FPL's own published <code>xP</code> at the thing that actually matters for picking a squad: ranking players within a gameweek and picking a good top-11/15. See the headline table's Spearman and top-k columns above for exactly how much of a gap that is.
+          It beats simple "average of recent gameweeks" baselines on raw point-estimate accuracy (RMSE/MAE) in every position. It does <strong>not</strong> reliably beat FPL's own published <code>xP</code> at the thing that actually matters for picking a squad: ranking players within a gameweek and picking a good top-11/15. See the headline table's Spearman columns above, and the constrained-squad realised points, for exactly how much of a gap that is. Every gap reported here also carries a bootstrapped confidence interval (see <a href="https://github.com/McKechnieLabs/fpl-xp/blob/main/reports/backtest.md" target="_blank" rel="noopener">the full report</a>) rather than being asserted from a single point estimate on one frozen test run.
         </p>
         <p class="lede">
-          Known gaps: it has no idea who takes penalties or set pieces (that information isn't in the underlying data source at all). It can't see injuries or team-news announced after the data was last pulled. Its GW1-of-season predictions for players without a matched prior season fall back to positional averages, so a new signing's or promoted-team player's first gameweek is a weaker prediction than a returning player's.
+          The headline numbers exclude a subset of rows that are trivially easy: reindexed "blank gameweek" rows (a player's team simply had no fixture that round) are dropped from the "excl. blanks" columns, since predicting 0 there requires no skill and v0.1 never had those rows to begin with.
+        </p>
+        <p class="lede">
+          Known gaps: it has no idea who takes penalties or set pieces (that information isn't in the underlying data source at all). It can't see injuries or team-news announced after the data was last pulled. Its GW1-of-season predictions for players without a matched prior season fall back to positional averages, so a new signing's or promoted-team player's first gameweek is a weaker prediction than a returning player's. The constrained-squad picker is a greedy heuristic within one fixed formation, not an exhaustive search or a true optimiser.
         </p>
       </details>
     </section>
@@ -199,9 +208,9 @@
     const rows = pointMetrics.filter(r => r.position === 'ALL');
     const thead = el('thead', {}, [el('tr', {}, [
       el('th', { text: 'Method' }),
-      el('th', { text: 'RMSE' }),
+      el('th', { text: 'RMSE (excl. blanks)' }),
       el('th', { text: 'RMSE (played)' }),
-      el('th', { text: 'Spearman' }),
+      el('th', { text: 'Spearman (excl. blanks)' }),
       el('th', { text: 'Spearman (played)' }),
     ])]);
     const tbody = el('tbody');
@@ -210,10 +219,34 @@
       if (!r) return;
       tbody.appendChild(el('tr', {}, [
         el('td', { 'data-label': 'Method', text: method }),
-        el('td', { 'data-label': 'RMSE', text: fmt(r.rmse) }),
+        el('td', { 'data-label': 'RMSE (excl. blanks)', text: fmt(r.rmse_nonblank) }),
         el('td', { 'data-label': 'RMSE (played)', text: fmt(r.rmse_played) }),
-        el('td', { 'data-label': 'Spearman', text: fmt(r.spearman) }),
+        el('td', { 'data-label': 'Spearman (excl. blanks)', text: fmt(r.spearman_nonblank) }),
         el('td', { 'data-label': 'Spearman (played)', text: fmt(r.spearman_played) }),
+      ]));
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+  }
+
+  function buildConstrainedSquadTable(squad, formation) {
+    const table = document.getElementById('squad-table');
+    const el2 = document.getElementById('squad-formation');
+    if (el2) el2.textContent = formation || '';
+    const thead = el('thead', {}, [el('tr', {}, [
+      el('th', { text: 'Method' }),
+      el('th', { text: 'Realised pts/GW' }),
+      el('th', { text: 'Feasible GWs' }),
+    ])]);
+    const tbody = el('tbody');
+    const order = METHOD_ORDER.concat(['Oracle (perfect hindsight)']);
+    order.forEach(method => {
+      const r = squad.find(x => x.method === method);
+      if (!r) return;
+      tbody.appendChild(el('tr', {}, [
+        el('td', { 'data-label': 'Method', text: method }),
+        el('td', { 'data-label': 'Realised pts/GW', text: fmt(r.mean_realised_points, 1) }),
+        el('td', { 'data-label': 'Feasible GWs', text: `${r.n_gameweeks_feasible}/${r.n_gameweeks_total}` }),
       ]));
     });
     table.appendChild(thead);
@@ -337,6 +370,7 @@
       buildMinutesCards(meta.point_metrics);
       buildPositionTabs(meta.point_metrics);
       buildTopkTable(meta.topk_metrics);
+      buildConstrainedSquadTable(meta.constrained_squad, meta.constrained_squad_formation);
       buildRunDetails(meta);
       statusEl.hidden = true;
       appEl.hidden = false;
