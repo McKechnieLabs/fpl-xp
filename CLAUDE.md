@@ -99,12 +99,20 @@ Every feature must be computable strictly before the gameweek it predicts.
 ## Metrics
 
 The frozen set, defined in `docs/evaluation-plan.md` and implemented in
-`fplxp/metrics.py`: RMSE/MAE/Spearman, each computed twice (all rows, and
-restricted to `minutes > 0`), precision@k and realised-points-of-top-k for
-k in {1, 11, 15} against baselines and an oracle, and a calibration table
-(actual vs. predicted by predicted decile, per position). Compared against
-three baselines: last-5-gameweek mean, season-to-date mean, and FPL's own
-`xP`. Spearman uses `DataFrame.corr(method="spearman")` -- no scipy.
+`fplxp/metrics.py`: RMSE/MAE/Spearman, each computed three ways (all rows;
+excluding synthetic `is_blank` reindexed rows; restricted to
+`minutes > 0`), unconstrained precision@k and realised-points-of-top-k for
+k in {1, 11, 15} against baselines and an oracle, a **constrained top-11**
+(fixed formation, budget, 3-per-club cap -- `constrained_squad_metrics`),
+a calibration table (actual vs. predicted by predicted decile, per
+position), and a paired bootstrap CI (`bootstrap_paired_diff`) on the
+model-vs-best-baseline gap. Compared against three baselines:
+last-5-gameweek mean, season-to-date mean, and FPL's own `xP`. Spearman
+uses `DataFrame.corr(method="spearman")` (no scipy) and is averaged only
+over gameweeks where every predictor being compared has a non-degenerate
+correlation (`_common_valid_gameweeks`) -- `xP` is a data-quality gap
+(constant value) for a large chunk of the in-progress 2025-26 season in
+the source data, so this alignment matters, not just a theoretical nicety.
 
 ## Constraints
 

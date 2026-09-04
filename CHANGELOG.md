@@ -30,18 +30,21 @@ unmodified at `reports/backtest_v0.1.md`.
   attack/defence strength (side-matched to home/away), market features
   (price, log-ownership, rolling deltas -- labelled distinctly), explicit
   missingness flags (`gws_of_history`, `is_first_gw_of_season`), and
-  prior-season GW1 carryover (matched by player name, ~67-76% coverage).
+  prior-season GW1 carryover (matched by FPL's persistent `code`, ~73-78%
+  coverage -- see review-round fixes below for why `code` and not `name`).
 - **Metrics**: dropped `scipy` (Spearman now via
-  `DataFrame.corr(method="spearman")`). Every metric now reported twice
-  (all rows vs. `minutes > 0`). Added precision@k / realised-points-of-
-  top-k (k in {1, 11, 15}) against an oracle, and predicted-decile
-  calibration.
+  `DataFrame.corr(method="spearman")`). Every metric now reported three
+  ways (all rows / excluding blanks / `minutes > 0`). Added unconstrained
+  precision@k / realised-points-of-top-k (k in {1, 11, 15}) against an
+  oracle, a constrained top-11 (budget + formation + 3-per-club),
+  predicted-decile calibration, and a paired bootstrap CI on the
+  model-vs-best-baseline gap.
 - **Model**: added `HistGradientBoostingRegressor(loss="poisson")`, a
   two-stage `P(played_60) x E[points|played]` model, and a pooled
   cross-position model, compared against the v0.1-style
   `GradientBoostingRegressor` on validation only via a rule fixed in
   `docs/evaluation-plan.md` *before* any variant was run. On the real
-  data, the v0.1-style model won.
+  data, **the pooled model won** (mean rank 1.5 vs. 1.75/3.0/3.75).
 - **Baselines**: added `baseline_xp` (FPL's own published `xP`) as a
   third, non-naive benchmark, prominently reported.
 - Pinned exact dependency versions in `requirements.txt`; added
@@ -64,14 +67,56 @@ unmodified at `reports/backtest_v0.1.md`.
   pipeline, commits regenerated reports/site data to `main`, and
   publishes `site/` to `gh-pages`.
 
+### Review round (fixes made in response to an external review of the v0.2 draft)
+
+Before the frozen test run, a review of the v0.2 draft raised nine
+issues, all addressed -- see `docs/judgment-calls.md`'s "Review round"
+section (#18-26) for the full writeup of each:
+
+1. Blank-gameweek reindexing now distinguishes a true team-wide blank
+   from a data gap where the team played but the row was simply missing
+   (reusing the team-fixture table already built for #7) -- empirically a
+   no-op on this data source (0 data-gap rows found), but now correct in
+   principle and tested either way.
+2. Every metric gained a third cut excluding synthetic blank rows, so the
+   headline numbers are comparable to v0.1 (which never had blank rows).
+3. `docs/leakage-audit.md` §4's "losing on Spearman corroborates a clean
+   pipeline" argument was retracted as invalid (a partial minutes-only
+   leak would produce the identical pattern) and rewritten to rely only
+   on the actual evidence (the code audit and the spike test).
+4. GW1 carryover switched from name-matching to `players_raw.csv`'s
+   `code` (FPL's real persistent player id) after confirming `element`
+   resets every season but `code` doesn't.
+5. Per-90 rate features now correctly zero-fill for real zero-minute
+   history (an unused sub, a long-term injury) instead of leaving `NaN`
+   to be median-imputed as league-average quality.
+6. A validation-only ablation now checks whether adding the raw
+   `pts_form3`/`pts_form5` columns back improves the winning model
+   (only applicable to `PositionModels`-based winners; not run this
+   round since `pooled` won).
+7. Added a constrained top-11 metric (fixed formation, budget, 3-per-club
+   cap) alongside the unconstrained top-k, and softened the "decision-
+   relevant" framing of the unconstrained k=11/15 numbers.
+8. Added a paired bootstrap CI (2000 resamples over gameweeks) on the
+   model-vs-best-baseline RMSE and Spearman gaps.
+9. Spearman is now averaged only over gameweeks where every predictor
+   being compared has a defined correlation -- which surfaced a much
+   larger `xP` data-quality gap than previously known (30 of 76 test
+   gameweeks, concentrated in the back half of 2025-26, not the 2
+   gameweeks first noted).
+
 ### Result
 
-On the frozen test seasons, the v0.2 model beats every baseline
-(including FPL's own `xP`) on RMSE/MAE in every position, with no
-hyperparameter tuning. It does **not** beat FPL's `xP` on Spearman rank
-correlation or realised points of a top-11 pick among players who
-actually played -- reported plainly rather than tuned away. Full table:
-`reports/backtest.md` and the [live site](https://mckechnielabs.github.io/fpl-xp/).
+On the frozen test seasons, the v0.2 model (the `pooled` variant) beats
+every baseline (including FPL's own `xP`) on RMSE/MAE in every position,
+with no hyperparameter tuning -- a paired bootstrap puts that RMSE gap at
+-0.150 points (95% CI [-0.194, -0.110], real, not noise). It does **not**
+beat FPL's `xP` on Spearman rank correlation among players who played
+(bootstrap mean diff -0.204, 95% CI [-0.226, -0.180], also real) or on a
+realistic constrained-squad's realised points (53.6 vs. 61.0 pts/gameweek
+for `xP`, vs. 132.7 for a perfect-hindsight oracle) -- reported plainly
+rather than tuned away. Full table: `reports/backtest.md` and the
+[live site](https://mckechnielabs.github.io/fpl-xp/).
 
 ## v0.1
 
