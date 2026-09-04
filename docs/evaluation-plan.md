@@ -31,28 +31,55 @@ down **by position** and **ALL**:
    mostly predicting "0 points, didn't play" correctly is demonstrating a
    real but different skill from ranking players who actually featured.
    Reporting only the pooled number lets the first skill silently stand
-   in for the second.
+   in for the second. A **third** cut, excluding synthetic `is_blank`
+   reindexed rows (docs/judgment-calls.md), is reported alongside these
+   two: those rows have a trivially-predictable target of 0 and weren't
+   present at all in v0.1, so the all-rows number on its own isn't
+   comparable across versions.
 3. **Mean per-gameweek Spearman rank correlation** -- computed within
    each (season, round) slate and averaged, as in v0.1, via
-   `DataFrame.corr(method="spearman")` (no scipy).
+   `DataFrame.corr(method="spearman")` (no scipy). Averaged only over
+   gameweeks where every predictor being compared has a defined
+   (non-degenerate) correlation, so one predictor's data gap doesn't
+   silently change which gameweeks another's average is computed over
+   (docs/judgment-calls.md).
 4. **Precision@k** for k in {1, 11, 15} -- within each gameweek's slate,
    take the model's top-k predicted players; precision@k is the fraction
    of those k who were also in the *actual* top-k by real points that
-   gameweek. Averaged across gameweeks.
-5. **Realised points of top-k** for k in {1, 11, 15} -- the sum of real
-   `total_points` earned by the model's top-k picks that gameweek,
-   averaged across gameweeks, reported alongside the same quantity for:
-   - each baseline,
-   - an **oracle** (the actual top-k by real points that gameweek --
-     the theoretical ceiling).
-   This is the decision-relevant number: RMSE is a proxy for it, this
-   *is* the thing a squad-selection decision actually cares about.
+   gameweek. Averaged across gameweeks. **Unconstrained**: no budget, no
+   formation, no per-club limit. That's a genuine decision only for k=1
+   (captaincy: you already own your squad, so picking who to captain
+   really is "best predicted score today," unconstrained). It is NOT a
+   realistic top-11/15 XI -- with no budget or club cap it can and does
+   pick five players from one club -- so those k values are reported as
+   an upper bound on ranking quality, not a proposed squad.
+5. **Realised points of top-k** for k in {1, 11, 15}, same unconstrained
+   caveat as above -- the sum of real `total_points` earned by the
+   model's top-k picks that gameweek, averaged across gameweeks, reported
+   alongside the same quantity for each baseline and an **oracle** (the
+   actual top-k by real points that gameweek -- the theoretical ceiling).
+5b. **Constrained top-11**: one XI per gameweek, greedily built within a
+   fixed formation, a GBP100m budget, and a max of 3 players per club --
+   the version of the top-k idea that actually respects FPL's squad
+   rules, at the cost of being a heuristic (fixed formation, not
+   formation-searched; greedy fill, not a global optimum within that
+   formation) rather than an exact solve. This, not the unconstrained
+   k=11/15 numbers, is the closest this report gets to "the thing a
+   squad-selection decision actually cares about."
 6. **Calibration**: mean actual points by predicted-points decile, per
    position, plotted. Systematic under-prediction in the top decile is
    the specific failure mode that breaks captaincy picks (the model
    telling you your best player is a safe, boring floor pick when they're
    actually a explosive ceiling pick) -- this is checked explicitly
    rather than hoped RMSE would catch it.
+7. **Bootstrap CI on the frozen-test-run comparison**: for the headline
+   RMSE and Spearman gaps (model vs. best baseline, `minutes > 0` rows),
+   compute the metric per gameweek for both, pair by gameweek, and
+   bootstrap (2000 resamples, gameweeks resampled with replacement) the
+   mean paired difference to get an SE and 95% CI. A single point
+   estimate from one frozen test run ("RMSE 2.926 vs. 3.068") doesn't say
+   whether that gap is distinguishable from gameweek-to-gameweek noise;
+   the CI does.
 
 ## Baselines compared
 

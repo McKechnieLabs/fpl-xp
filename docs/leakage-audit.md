@@ -83,29 +83,49 @@ computes `Spearman(feature, total_points)` for every column in
 `FEATURE_COLUMNS` over the training seasons (2020-21..2022-23) and fails
 if any exceeds 0.9 in magnitude -- the threshold a genuinely leaked
 feature (e.g. a same-gameweek raw stat that slipped through) would blow
-past immediately. The actual maximum found is 0.64
-(`mins_form3`, rolling minutes), with the next few all also
-minutes/availability features (`starts_rate_form3` 0.64,
-`played60_rate_form3` 0.60). This is exactly the expected shape: minutes
-are the single biggest driver of FPL points (a player who doesn't play
-can't score), so a moderately strong, *not suspiciously perfect*,
-correlation on the minutes-availability features is the signature of a
-clean pipeline, not a leaked one. No output-quality feature (goals/assists/bps
-per-90 rates) exceeds 0.46.
+past immediately. The actual maximum found is 0.64 (`mins_form3`, rolling
+minutes), with the next few all also minutes/availability features
+(`starts_rate_form3` 0.64, `played60_rate_form3` 0.60). This is exactly
+the expected shape: minutes are the single biggest driver of FPL points
+(a player who doesn't play can't score), so a moderately strong, *not
+suspiciously perfect*, correlation on the minutes-availability features
+is consistent with (though, per §4 below, does not on its own prove) a
+clean pipeline. The strongest output-quality feature is `ict_per90_form3`
+at 0.58 -- higher than in an earlier pass of this check, because fixing
+the per-90 zero-fill bug (docs/judgment-calls.md: a long-term-injured or
+unused player's per-90 rate is now correctly 0 rather than NaN-then-median-imputed)
+made that feature honestly reflect low output for non-players instead of
+being diluted toward the position average. Still well short of 0.9.
 
-## 4. What this says about the v0.1 RMSE/MAE win
+## 4. What the v0.1 RMSE/MAE-win-without-a-Spearman-win pattern does NOT prove
 
-The v0.1 report is corroborating evidence, not just consistent with a
-clean pipeline: it did *not* also show the model crushing the baselines
-on Spearman rank correlation (it lost narrowly on Spearman overall and in
-3 of 4 positions -- see the old `reports/backtest.md` v0.1 section). A
-model with real, undocumented lookahead into `total_points` would be
-expected to dominate on *every* metric, including rank correlation,
-because it would effectively already know the answer. Winning decisively
-on RMSE/MAE (driven substantially by the same minutes-availability
-signal identified above -- a genuinely strong, legitimate predictor) while
-only roughly matching a simple average on ranking quality is the profile
-of an honest, moderately-informative feature set, not a leaked one.
+An earlier version of this section argued that v0.1 losing narrowly on
+Spearman while winning decisively on RMSE/MAE was itself *corroborating
+evidence* of a clean pipeline, on the theory that a truly leaked model
+would dominate every metric at once. **That inference doesn't hold and
+has been removed.** A sharper counterexample: *partial* leakage confined
+to the minutes/availability signal specifically (not the points signal)
+would produce exactly the same observed pattern -- large RMSE/MAE gains
+from correctly predicting near-zero for players who don't feature, and no
+corresponding gain in within-gameweek rank correlation *among players who
+already played*, since a minutes-only leak says nothing about how good
+they were once playing. The RMSE-vs-Spearman split is consistent with
+either a clean pipeline or that specific partial-leakage failure mode; it
+cannot distinguish between them, and stating otherwise overclaimed what
+the pattern actually shows.
+
+The reason this project can still say there's no minutes leakage isn't
+that split -- it's §1 and §2 directly: `mins_form{w}`,
+`played60_rate_form{w}`, and `starts_rate_form{w}` are ordinary
+`_add_player_rolling` outputs, built by the exact same
+shift-before-rolling code path audited line-by-line in §1, and covered by
+the same synthetic spike test in §2 (which does not special-case minutes
+-- the synthetic player's minutes are constant and uninteresting, but the
+mechanism generating `mins_form{w}` is identical to the mechanism
+generating every other rolling feature checked there). The evidence for
+"no leakage" is the code audit and the spike test, full stop; the
+RMSE/Spearman split is a separate, honest *result* (reported in
+`reports/backtest.md`), not a leakage-detection signal.
 
 ## Verdict
 
